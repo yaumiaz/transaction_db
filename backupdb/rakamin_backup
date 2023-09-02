@@ -1,0 +1,888 @@
+--
+-- PostgreSQL database dump
+--
+
+-- Dumped from database version 15.3
+-- Dumped by pg_dump version 15.3
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: app; Type: SCHEMA; Schema: -; Owner: postgres
+--
+
+CREATE SCHEMA app;
+
+
+ALTER SCHEMA app OWNER TO postgres;
+
+--
+-- Name: SCHEMA app; Type: COMMENT; Schema: -; Owner: postgres
+--
+
+COMMENT ON SCHEMA app IS 'skema terkait produk';
+
+
+--
+-- Name: pgagent; Type: SCHEMA; Schema: -; Owner: postgres
+--
+
+CREATE SCHEMA pgagent;
+
+
+ALTER SCHEMA pgagent OWNER TO postgres;
+
+--
+-- Name: SCHEMA pgagent; Type: COMMENT; Schema: -; Owner: postgres
+--
+
+COMMENT ON SCHEMA pgagent IS 'pgAgent system tables';
+
+
+--
+-- Name: pgagent; Type: EXTENSION; Schema: -; Owner: -
+--
+
+CREATE EXTENSION IF NOT EXISTS pgagent WITH SCHEMA pgagent;
+
+
+--
+-- Name: EXTENSION pgagent; Type: COMMENT; Schema: -; Owner: 
+--
+
+COMMENT ON EXTENSION pgagent IS 'A PostgreSQL job scheduler';
+
+
+--
+-- Name: add_product(character varying); Type: PROCEDURE; Schema: app; Owner: postgres
+--
+
+CREATE PROCEDURE app.add_product(IN product_name character varying)
+    LANGUAGE plpgsql
+    AS $$begin
+	insert into app.product(product_name)
+	values (product_name);
+	commit;
+end$$;
+
+
+ALTER PROCEDURE app.add_product(IN product_name character varying) OWNER TO postgres;
+
+--
+-- Name: create_shipment(integer, integer, character varying); Type: PROCEDURE; Schema: app; Owner: postgres
+--
+
+CREATE PROCEDURE app.create_shipment(IN product_id integer, IN store_id integer, IN received_by character varying)
+    LANGUAGE plpgsql
+    AS $$
+begin
+	insert into app.shipping(product_id, store_id, sending_time, delivered_time, received_by)
+	values (product_id,store_id,now(),now(),received_by);
+	commit;
+end
+$$;
+
+
+ALTER PROCEDURE app.create_shipment(IN product_id integer, IN store_id integer, IN received_by character varying) OWNER TO postgres;
+
+--
+-- Name: generate_kode_shipment(); Type: FUNCTION; Schema: app; Owner: postgres
+--
+
+CREATE FUNCTION app.generate_kode_shipment() RETURNS character
+    LANGUAGE plpgsql
+    AS $$declare
+	last_id integer;
+begin
+	select
+		cast(
+			coalesce(
+				MAX(kode_shipment),
+				concat(
+					to_char(now(), 'YYMMDD'),
+				'00')
+				)
+				as integer
+			) into last_id
+	from rakamin_kalbe.app.shipping
+	where left(cast(kode_shipment as text), 6) = to_char(now(), 'YYMMDD');
+	return cast(last_id + 1 as char(8));
+end;$$;
+
+
+ALTER FUNCTION app.generate_kode_shipment() OWNER TO postgres;
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: detail_shipping; Type: TABLE; Schema: app; Owner: postgres
+--
+
+CREATE TABLE app.detail_shipping (
+    detail_shipping_id integer NOT NULL,
+    shipping_id integer NOT NULL,
+    vehicle_id integer NOT NULL,
+    driver_id integer NOT NULL,
+    operator_id integer NOT NULL,
+    qty integer,
+    unit character varying
+);
+
+
+ALTER TABLE app.detail_shipping OWNER TO postgres;
+
+--
+-- Name: detail_shipping_detail_shipping_id_seq; Type: SEQUENCE; Schema: app; Owner: postgres
+--
+
+CREATE SEQUENCE app.detail_shipping_detail_shipping_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE app.detail_shipping_detail_shipping_id_seq OWNER TO postgres;
+
+--
+-- Name: detail_shipping_detail_shipping_id_seq; Type: SEQUENCE OWNED BY; Schema: app; Owner: postgres
+--
+
+ALTER SEQUENCE app.detail_shipping_detail_shipping_id_seq OWNED BY app.detail_shipping.detail_shipping_id;
+
+
+--
+-- Name: driver; Type: TABLE; Schema: app; Owner: postgres
+--
+
+CREATE TABLE app.driver (
+    driver_id integer NOT NULL,
+    driver_name character varying(100) NOT NULL,
+    co_driver_name character varying(100) NOT NULL
+);
+
+
+ALTER TABLE app.driver OWNER TO postgres;
+
+--
+-- Name: driver_driver_id_seq; Type: SEQUENCE; Schema: app; Owner: postgres
+--
+
+CREATE SEQUENCE app.driver_driver_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE app.driver_driver_id_seq OWNER TO postgres;
+
+--
+-- Name: driver_driver_id_seq; Type: SEQUENCE OWNED BY; Schema: app; Owner: postgres
+--
+
+ALTER SEQUENCE app.driver_driver_id_seq OWNED BY app.driver.driver_id;
+
+
+--
+-- Name: operator; Type: TABLE; Schema: app; Owner: postgres
+--
+
+CREATE TABLE app.operator (
+    operator_id integer NOT NULL,
+    operator_name character varying(100) NOT NULL
+);
+
+
+ALTER TABLE app.operator OWNER TO postgres;
+
+--
+-- Name: operator_operator_id_seq; Type: SEQUENCE; Schema: app; Owner: postgres
+--
+
+CREATE SEQUENCE app.operator_operator_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE app.operator_operator_id_seq OWNER TO postgres;
+
+--
+-- Name: operator_operator_id_seq; Type: SEQUENCE OWNED BY; Schema: app; Owner: postgres
+--
+
+ALTER SEQUENCE app.operator_operator_id_seq OWNED BY app.operator.operator_id;
+
+
+--
+-- Name: product; Type: TABLE; Schema: app; Owner: postgres
+--
+
+CREATE TABLE app.product (
+    product_id integer NOT NULL,
+    product_name character varying(100) NOT NULL
+);
+
+
+ALTER TABLE app.product OWNER TO postgres;
+
+--
+-- Name: product_product_id_seq; Type: SEQUENCE; Schema: app; Owner: postgres
+--
+
+CREATE SEQUENCE app.product_product_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE app.product_product_id_seq OWNER TO postgres;
+
+--
+-- Name: product_product_id_seq; Type: SEQUENCE OWNED BY; Schema: app; Owner: postgres
+--
+
+ALTER SEQUENCE app.product_product_id_seq OWNED BY app.product.product_id;
+
+
+--
+-- Name: shipping; Type: TABLE; Schema: app; Owner: postgres
+--
+
+CREATE TABLE app.shipping (
+    shipping_id integer NOT NULL,
+    product_id integer NOT NULL,
+    store_id integer NOT NULL,
+    sending_time date,
+    delivered_time date,
+    received_by character varying(100),
+    kode_shipment character(20) DEFAULT app.generate_kode_shipment()
+);
+
+
+ALTER TABLE app.shipping OWNER TO postgres;
+
+--
+-- Name: shipping_shipping_id_seq; Type: SEQUENCE; Schema: app; Owner: postgres
+--
+
+CREATE SEQUENCE app.shipping_shipping_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE app.shipping_shipping_id_seq OWNER TO postgres;
+
+--
+-- Name: shipping_shipping_id_seq; Type: SEQUENCE OWNED BY; Schema: app; Owner: postgres
+--
+
+ALTER SEQUENCE app.shipping_shipping_id_seq OWNED BY app.shipping.shipping_id;
+
+
+--
+-- Name: store; Type: TABLE; Schema: app; Owner: postgres
+--
+
+CREATE TABLE app.store (
+    store_id integer NOT NULL,
+    store_name character varying(100) NOT NULL,
+    address text
+);
+
+
+ALTER TABLE app.store OWNER TO postgres;
+
+--
+-- Name: store_store_id_seq; Type: SEQUENCE; Schema: app; Owner: postgres
+--
+
+CREATE SEQUENCE app.store_store_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE app.store_store_id_seq OWNER TO postgres;
+
+--
+-- Name: store_store_id_seq; Type: SEQUENCE OWNED BY; Schema: app; Owner: postgres
+--
+
+ALTER SEQUENCE app.store_store_id_seq OWNED BY app.store.store_id;
+
+
+--
+-- Name: vehicle; Type: TABLE; Schema: app; Owner: postgres
+--
+
+CREATE TABLE app.vehicle (
+    vehicle_id integer NOT NULL,
+    shipping_vehicle character varying(100) NOT NULL,
+    no_polisi character varying(100) NOT NULL
+);
+
+
+ALTER TABLE app.vehicle OWNER TO postgres;
+
+--
+-- Name: vehicle_vehicle_id_seq; Type: SEQUENCE; Schema: app; Owner: postgres
+--
+
+CREATE SEQUENCE app.vehicle_vehicle_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE app.vehicle_vehicle_id_seq OWNER TO postgres;
+
+--
+-- Name: vehicle_vehicle_id_seq; Type: SEQUENCE OWNED BY; Schema: app; Owner: postgres
+--
+
+ALTER SEQUENCE app.vehicle_vehicle_id_seq OWNED BY app.vehicle.vehicle_id;
+
+
+--
+-- Name: detail_shipping detail_shipping_id; Type: DEFAULT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.detail_shipping ALTER COLUMN detail_shipping_id SET DEFAULT nextval('app.detail_shipping_detail_shipping_id_seq'::regclass);
+
+
+--
+-- Name: driver driver_id; Type: DEFAULT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.driver ALTER COLUMN driver_id SET DEFAULT nextval('app.driver_driver_id_seq'::regclass);
+
+
+--
+-- Name: operator operator_id; Type: DEFAULT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.operator ALTER COLUMN operator_id SET DEFAULT nextval('app.operator_operator_id_seq'::regclass);
+
+
+--
+-- Name: product product_id; Type: DEFAULT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.product ALTER COLUMN product_id SET DEFAULT nextval('app.product_product_id_seq'::regclass);
+
+
+--
+-- Name: shipping shipping_id; Type: DEFAULT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.shipping ALTER COLUMN shipping_id SET DEFAULT nextval('app.shipping_shipping_id_seq'::regclass);
+
+
+--
+-- Name: store store_id; Type: DEFAULT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.store ALTER COLUMN store_id SET DEFAULT nextval('app.store_store_id_seq'::regclass);
+
+
+--
+-- Name: vehicle vehicle_id; Type: DEFAULT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.vehicle ALTER COLUMN vehicle_id SET DEFAULT nextval('app.vehicle_vehicle_id_seq'::regclass);
+
+
+--
+-- Data for Name: detail_shipping; Type: TABLE DATA; Schema: app; Owner: postgres
+--
+
+COPY app.detail_shipping (detail_shipping_id, shipping_id, vehicle_id, driver_id, operator_id, qty, unit) FROM stdin;
+1	1	1	1	1	5	box
+2	2	2	2	1	3	box
+3	3	1	1	1	5	box
+4	4	2	2	1	2	box
+5	5	1	1	1	10	box
+6	6	1	3	2	10	box
+7	7	1	3	2	5	box
+8	8	1	3	2	12	box
+9	9	1	3	2	10	box
+10	10	1	3	2	5	box
+11	11	1	3	2	4	box
+12	12	2	2	1	8	box
+13	13	1	3	2	6	box
+\.
+
+
+--
+-- Data for Name: driver; Type: TABLE DATA; Schema: app; Owner: postgres
+--
+
+COPY app.driver (driver_id, driver_name, co_driver_name) FROM stdin;
+1	Dimas Ahmad	Andi Wahyu
+2	Hari Saputra	Dadang Bima
+3	Ginanjar	Hari Saputra
+\.
+
+
+--
+-- Data for Name: operator; Type: TABLE DATA; Schema: app; Owner: postgres
+--
+
+COPY app.operator (operator_id, operator_name) FROM stdin;
+1	Ahmad Agus
+2	Fitrianto
+\.
+
+
+--
+-- Data for Name: product; Type: TABLE DATA; Schema: app; Owner: postgres
+--
+
+COPY app.product (product_id, product_name) FROM stdin;
+1	Hydro Coco 250ml
+2	Hydro Coco 330ml
+3	Hydro Coco 500ml
+4	Hydro Coco 1 liter
+5	Hydro Coco Vita-D 330ml
+6	Milna Biskuit Bayi Original
+7	Milna Biskuit Bayi Beras Merah
+8	Milna Biskuit Bayi Kacang Hijau
+9	Milna Biskuit Bayi Jeruk
+10	Milna Biskuit Bayi Pisang
+11	Milna Biskuit Bayi Apel
+12	Milna Biskuit Bayi Apel Jeruk
+13	Milna Bubur Bayi Beras Merah Untuk 6 - 12 Bulan
+14	Milna Bubur Bayi Pisang Untuk 6 - 12 Bulan
+15	Milna Bubur Bayi Sup Ayam Wortel Untuk 6 - 12 Bulan
+16	Milna Bubur Bayi Sup Daging Brokoli Untuk 6 - 12 Bulan
+17	Milna Bubur Bayi Tim Hati Ayam Bayam Untuk 6 - 12 Bulan
+18	Milna Bubur Bayi Ayam Jagung Manis Untuk 8 - 12 Bulan
+19	Milna Bubur Bayi Daging Kacang Polong Untuk 8 - 12 Bulan
+20	Milna Bubur Bayi Hati Ayam Brokoli Untuk 8 - 12 Bulan
+21	Milna Bubur Organik Pisang
+22	Milna Bubur Organik Kacang Hijau
+23	Milna Bubur Organik Beras Merah
+24	Milna Bubur Organik Multigrain
+25	Milna Bubur Bayi WGAIN Ayam Kacang Polong
+26	Milna Bubur Bayi WGAIN Ayam Wortel Brokoli
+27	Milna Bubur Bayi WGAIN Ayam Manis Teriyaki
+28	Milna Bubur Bayi WGAIN Ayam Bayam
+29	Milna Goodmil Peach Stroberi Jeruk
+30	Milna Goodmil Wortel Labu
+31	Milna Goodmil Beras Merah Semur Ayam
+32	Milna Goodmil Beras Merah Pisang
+33	Milna Goodmil Beras Merah Ayam
+34	Milna Goodmil Hypoallergenic Beras Merah
+35	Milna Nature Delight Apel Peach
+36	Milna Nature Delight Apel Labu Wortel
+37	Milna Nature Delight Apel Pisang Stroberi
+38	Milna Biskuit Bayi Finger
+39	Milna Nature Puffs Organic Pisang
+40	Milna Nature Puffs Organic Keju
+41	Milna Nature Puffs Organic Apel & Mix Berries
+42	Milna Rice Crackers Apple Orange
+43	Milna Rice Crackers Banana Berries
+44	Milna Rice Crackers Sweet Potato Carrot
+45	Nutrive Benecol Blackcurrant
+46	Nutrive Benecol Strawberry
+47	Nutrive Benecol Orange
+48	Nutrive Benecol Lychee
+49	Entrasol Active Vanilla latte
+50	Entrasol Active Mochaccino
+51	Entrasol Active Chocolate
+52	Entrasol Gold Original
+53	Entrasol Gold Chocolate
+54	Entrasol Gold Vanilla
+55	Entrasol UHT Vanilla Latte
+56	Entrasol UHT Chocolate
+57	Entrasol Cereal Vanilla Vegie
+58	Entrasol Cereal Chocolate
+59	Entrasol Platinum Vanilla
+60	Entrasol Platinum Chocolate
+61	Hydro Coco Vita-D 1 liter
+\.
+
+
+--
+-- Data for Name: shipping; Type: TABLE DATA; Schema: app; Owner: postgres
+--
+
+COPY app.shipping (shipping_id, product_id, store_id, sending_time, delivered_time, received_by, kode_shipment) FROM stdin;
+1	1	1	2023-05-01	2023-05-01	Dian Ayu	23083001            
+2	1	2	2023-05-01	2023-05-01	Eriawan	23083002            
+3	5	1	2023-05-01	2023-05-01	Dian Ayu	23083003            
+4	2	2	2023-05-01	2023-05-01	Eriawan	23083004            
+5	11	1	2023-05-01	2023-05-01	Dian Ayu	23083005            
+6	35	3	2023-05-02	2023-05-02	Aji	23083006            
+7	36	3	2023-05-02	2023-05-02	Aji	23083007            
+8	42	3	2023-05-02	2023-05-02	Aji	23083008            
+9	24	3	2023-05-02	2023-05-02	Aji	23083009            
+10	49	4	2023-05-02	2023-05-02	Jamal	23083010            
+11	52	4	2023-05-02	2023-05-02	Jamal	23083011            
+12	52	2	2023-05-01	2023-05-01	Eriawan	23083012            
+13	53	4	2023-05-02	2023-05-02	Jamal	23083013            
+14	1	3	2023-08-30	\N	Eri	23083014            
+15	2	3	2023-08-30	2023-08-30	Irma	23083015            
+16	61	3	2023-08-30	2023-08-30	Irma	23083016            
+\.
+
+
+--
+-- Data for Name: store; Type: TABLE DATA; Schema: app; Owner: postgres
+--
+
+COPY app.store (store_id, store_name, address) FROM stdin;
+1	Apotek Agus Sari	Jln Angga Jaya no 21
+2	Toko Maju Bersama	Jln Agus Salim no 22
+3	Toko Anak Sehat	Jln Imam Bonjol no 33
+4	Apotek Agung	Pasar Senen no 301
+\.
+
+
+--
+-- Data for Name: vehicle; Type: TABLE DATA; Schema: app; Owner: postgres
+--
+
+COPY app.vehicle (vehicle_id, shipping_vehicle, no_polisi) FROM stdin;
+1	Box A001	B 1234 GA
+2	Box A002	B 3214 JS
+\.
+
+
+--
+-- Data for Name: pga_jobagent; Type: TABLE DATA; Schema: pgagent; Owner: postgres
+--
+
+COPY pgagent.pga_jobagent (jagpid, jaglogintime, jagstation) FROM stdin;
+\.
+
+
+--
+-- Data for Name: pga_jobclass; Type: TABLE DATA; Schema: pgagent; Owner: postgres
+--
+
+COPY pgagent.pga_jobclass (jclid, jclname) FROM stdin;
+\.
+
+
+--
+-- Data for Name: pga_job; Type: TABLE DATA; Schema: pgagent; Owner: postgres
+--
+
+COPY pgagent.pga_job (jobid, jobjclid, jobname, jobdesc, jobhostagent, jobenabled, jobcreated, jobchanged, jobagentid, jobnextrun, joblastrun) FROM stdin;
+\.
+
+
+--
+-- Data for Name: pga_schedule; Type: TABLE DATA; Schema: pgagent; Owner: postgres
+--
+
+COPY pgagent.pga_schedule (jscid, jscjobid, jscname, jscdesc, jscenabled, jscstart, jscend, jscminutes, jschours, jscweekdays, jscmonthdays, jscmonths) FROM stdin;
+\.
+
+
+--
+-- Data for Name: pga_exception; Type: TABLE DATA; Schema: pgagent; Owner: postgres
+--
+
+COPY pgagent.pga_exception (jexid, jexscid, jexdate, jextime) FROM stdin;
+\.
+
+
+--
+-- Data for Name: pga_joblog; Type: TABLE DATA; Schema: pgagent; Owner: postgres
+--
+
+COPY pgagent.pga_joblog (jlgid, jlgjobid, jlgstatus, jlgstart, jlgduration) FROM stdin;
+\.
+
+
+--
+-- Data for Name: pga_jobstep; Type: TABLE DATA; Schema: pgagent; Owner: postgres
+--
+
+COPY pgagent.pga_jobstep (jstid, jstjobid, jstname, jstdesc, jstenabled, jstkind, jstcode, jstconnstr, jstdbname, jstonerror, jscnextrun) FROM stdin;
+\.
+
+
+--
+-- Data for Name: pga_jobsteplog; Type: TABLE DATA; Schema: pgagent; Owner: postgres
+--
+
+COPY pgagent.pga_jobsteplog (jslid, jsljlgid, jsljstid, jslstatus, jslresult, jslstart, jslduration, jsloutput) FROM stdin;
+\.
+
+
+--
+-- Name: detail_shipping_detail_shipping_id_seq; Type: SEQUENCE SET; Schema: app; Owner: postgres
+--
+
+SELECT pg_catalog.setval('app.detail_shipping_detail_shipping_id_seq', 13, true);
+
+
+--
+-- Name: driver_driver_id_seq; Type: SEQUENCE SET; Schema: app; Owner: postgres
+--
+
+SELECT pg_catalog.setval('app.driver_driver_id_seq', 3, true);
+
+
+--
+-- Name: operator_operator_id_seq; Type: SEQUENCE SET; Schema: app; Owner: postgres
+--
+
+SELECT pg_catalog.setval('app.operator_operator_id_seq', 2, true);
+
+
+--
+-- Name: product_product_id_seq; Type: SEQUENCE SET; Schema: app; Owner: postgres
+--
+
+SELECT pg_catalog.setval('app.product_product_id_seq', 61, true);
+
+
+--
+-- Name: shipping_shipping_id_seq; Type: SEQUENCE SET; Schema: app; Owner: postgres
+--
+
+SELECT pg_catalog.setval('app.shipping_shipping_id_seq', 16, true);
+
+
+--
+-- Name: store_store_id_seq; Type: SEQUENCE SET; Schema: app; Owner: postgres
+--
+
+SELECT pg_catalog.setval('app.store_store_id_seq', 4, true);
+
+
+--
+-- Name: vehicle_vehicle_id_seq; Type: SEQUENCE SET; Schema: app; Owner: postgres
+--
+
+SELECT pg_catalog.setval('app.vehicle_vehicle_id_seq', 2, true);
+
+
+--
+-- Name: detail_shipping detail_shipping_pkey; Type: CONSTRAINT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.detail_shipping
+    ADD CONSTRAINT detail_shipping_pkey PRIMARY KEY (detail_shipping_id);
+
+
+--
+-- Name: driver driver_pkey; Type: CONSTRAINT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.driver
+    ADD CONSTRAINT driver_pkey PRIMARY KEY (driver_id);
+
+
+--
+-- Name: operator operator_pkey; Type: CONSTRAINT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.operator
+    ADD CONSTRAINT operator_pkey PRIMARY KEY (operator_id);
+
+
+--
+-- Name: product product_pkey; Type: CONSTRAINT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.product
+    ADD CONSTRAINT product_pkey PRIMARY KEY (product_id);
+
+
+--
+-- Name: shipping shipping_pkey; Type: CONSTRAINT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.shipping
+    ADD CONSTRAINT shipping_pkey PRIMARY KEY (shipping_id);
+
+
+--
+-- Name: store store_pkey; Type: CONSTRAINT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.store
+    ADD CONSTRAINT store_pkey PRIMARY KEY (store_id);
+
+
+--
+-- Name: vehicle vehicle_pkey; Type: CONSTRAINT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.vehicle
+    ADD CONSTRAINT vehicle_pkey PRIMARY KEY (vehicle_id);
+
+
+--
+-- Name: fki_fk_driver; Type: INDEX; Schema: app; Owner: postgres
+--
+
+CREATE INDEX fki_fk_driver ON app.detail_shipping USING btree (driver_id);
+
+
+--
+-- Name: fki_fk_operator; Type: INDEX; Schema: app; Owner: postgres
+--
+
+CREATE INDEX fki_fk_operator ON app.detail_shipping USING btree (operator_id);
+
+
+--
+-- Name: fki_fk_product; Type: INDEX; Schema: app; Owner: postgres
+--
+
+CREATE INDEX fki_fk_product ON app.shipping USING btree (product_id);
+
+
+--
+-- Name: fki_fk_shipping; Type: INDEX; Schema: app; Owner: postgres
+--
+
+CREATE INDEX fki_fk_shipping ON app.detail_shipping USING btree (shipping_id);
+
+
+--
+-- Name: fki_fk_vehicle; Type: INDEX; Schema: app; Owner: postgres
+--
+
+CREATE INDEX fki_fk_vehicle ON app.detail_shipping USING btree (vehicle_id);
+
+
+--
+-- Name: fki_s; Type: INDEX; Schema: app; Owner: postgres
+--
+
+CREATE INDEX fki_s ON app.shipping USING btree (store_id);
+
+
+--
+-- Name: detail_shipping fk_driver; Type: FK CONSTRAINT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.detail_shipping
+    ADD CONSTRAINT fk_driver FOREIGN KEY (driver_id) REFERENCES app.driver(driver_id);
+
+
+--
+-- Name: detail_shipping fk_operator; Type: FK CONSTRAINT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.detail_shipping
+    ADD CONSTRAINT fk_operator FOREIGN KEY (operator_id) REFERENCES app.operator(operator_id);
+
+
+--
+-- Name: shipping fk_product; Type: FK CONSTRAINT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.shipping
+    ADD CONSTRAINT fk_product FOREIGN KEY (product_id) REFERENCES app.product(product_id);
+
+
+--
+-- Name: shipping fk_store; Type: FK CONSTRAINT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.shipping
+    ADD CONSTRAINT fk_store FOREIGN KEY (store_id) REFERENCES app.store(store_id);
+
+
+--
+-- Name: detail_shipping fk_vehicle; Type: FK CONSTRAINT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.detail_shipping
+    ADD CONSTRAINT fk_vehicle FOREIGN KEY (vehicle_id) REFERENCES app.vehicle(vehicle_id);
+
+
+--
+-- Name: SCHEMA app; Type: ACL; Schema: -; Owner: postgres
+--
+
+GRANT USAGE ON SCHEMA app TO backend_user;
+
+
+--
+-- Name: TABLE detail_shipping; Type: ACL; Schema: app; Owner: postgres
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE app.detail_shipping TO backend_user;
+
+
+--
+-- Name: TABLE driver; Type: ACL; Schema: app; Owner: postgres
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE app.driver TO backend_user;
+
+
+--
+-- Name: TABLE operator; Type: ACL; Schema: app; Owner: postgres
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE app.operator TO backend_user;
+
+
+--
+-- Name: TABLE product; Type: ACL; Schema: app; Owner: postgres
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE app.product TO backend_user;
+
+
+--
+-- Name: TABLE store; Type: ACL; Schema: app; Owner: postgres
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE app.store TO backend_user;
+
+
+--
+-- Name: TABLE vehicle; Type: ACL; Schema: app; Owner: postgres
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE app.vehicle TO backend_user;
+
+
+--
+-- PostgreSQL database dump complete
+--
+
