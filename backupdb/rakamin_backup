@@ -63,6 +63,22 @@ COMMENT ON EXTENSION pgagent IS 'A PostgreSQL job scheduler';
 
 
 --
+-- Name: add_detail(integer, integer, integer, integer, integer, character varying); Type: PROCEDURE; Schema: app; Owner: postgres
+--
+
+CREATE PROCEDURE app.add_detail(IN shipping_id integer, IN driver_id integer, IN vehicle_id integer, IN operator_id integer, IN qty integer, IN unit character varying)
+    LANGUAGE plpgsql
+    AS $$begin
+	insert into app.detail_shipping(shipping_id, operator_id, driver_id, vehicle_id, qty, unit)
+	values (shipping_id, operator_id, driver_id, vehicle_id, qty, unit);
+	commit;
+end
+$$;
+
+
+ALTER PROCEDURE app.add_detail(IN shipping_id integer, IN driver_id integer, IN vehicle_id integer, IN operator_id integer, IN qty integer, IN unit character varying) OWNER TO postgres;
+
+--
 -- Name: add_product(character varying); Type: PROCEDURE; Schema: app; Owner: postgres
 --
 
@@ -121,6 +137,88 @@ end;$$;
 
 ALTER FUNCTION app.generate_kode_shipment() OWNER TO postgres;
 
+--
+-- Name: getshipment(character varying); Type: FUNCTION; Schema: app; Owner: postgres
+--
+
+CREATE FUNCTION app.getshipment(rqname character varying) RETURNS TABLE(resship_id integer, resprod_id integer, resstore_id integer, ressend_time date, resdelive_time date, reskode character, resname character varying)
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE
+var_r record;
+BEGIN
+FOR var_r IN(SELECT shipping_id, product_id, store_id, sending_time, delivered_time, kode_shipment, received_by
+FROM app.shipping
+WHERE received_by ILIKE rqname)
+LOOP
+resship_id := var_r.shipping_id ;
+resprod_id := var_r.product_id ;
+resstore_id := var_r.store_id ;
+ressend_time := var_r.sending_time ;
+resdelive_time := var_r.delivered_time ;
+reskode := var_r.kode_shipment ;
+resname := var_r.received_by ;
+RETURN NEXT;
+END LOOP;
+END; $$;
+
+
+ALTER FUNCTION app.getshipment(rqname character varying) OWNER TO postgres;
+
+--
+-- Name: insert_product(character varying, integer, character varying); Type: PROCEDURE; Schema: app; Owner: postgres
+--
+
+CREATE PROCEDURE app.insert_product(IN product_name character varying, IN store_id integer, IN received_by character varying)
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE last_id integer;
+BEGIN
+
+	INSERT INTO app.product (product_name)
+		VALUES (product_name)
+		RETURNING product_id into last_id;
+
+	INSERT INTO app.shipping (product_id, store_id, sending_time, delivered_time, received_by)
+		VALUES (last_id, store_id, now(), now(), received_by);
+
+END
+$$;
+
+
+ALTER PROCEDURE app.insert_product(IN product_name character varying, IN store_id integer, IN received_by character varying) OWNER TO postgres;
+
+--
+-- Name: db_to_csv(text); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.db_to_csv(path text) RETURNS void
+    LANGUAGE plpgsql
+    AS $$
+declare
+   tables RECORD;
+   statement TEXT;
+begin
+FOR tables IN 
+   SELECT (table_schema || '.' || table_name) AS schema_table
+   FROM information_schema.tables t INNER JOIN information_schema.schemata s 
+   ON s.schema_name = t.table_schema 
+   WHERE t.table_schema NOT IN ('pg_catalog', 'information_schema')
+   AND t.table_type NOT IN ('VIEW')
+   ORDER BY schema_table
+LOOP
+   statement := 'COPY ' || tables.schema_table || ' TO ''' || path || '/' || tables.schema_table || '.csv' ||''' DELIMITER '';'' CSV HEADER';
+   EXECUTE statement;
+END LOOP;
+return;  
+end;
+$$;
+
+
+ALTER FUNCTION public.db_to_csv(path text) OWNER TO postgres;
+
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
@@ -132,9 +230,9 @@ SET default_table_access_method = heap;
 CREATE TABLE app.detail_shipping (
     detail_shipping_id integer NOT NULL,
     shipping_id integer NOT NULL,
-    vehicle_id integer NOT NULL,
-    driver_id integer NOT NULL,
     operator_id integer NOT NULL,
+    driver_id integer NOT NULL,
+    vehicle_id integer NOT NULL,
     qty integer,
     unit character varying
 );
@@ -277,8 +375,8 @@ CREATE TABLE app.shipping (
     store_id integer NOT NULL,
     sending_time date,
     delivered_time date,
-    received_by character varying(100),
-    kode_shipment character(20) DEFAULT app.generate_kode_shipment()
+    kode_shipment character(20) DEFAULT app.generate_kode_shipment(),
+    received_by character varying(50)
 );
 
 
@@ -429,20 +527,21 @@ ALTER TABLE ONLY app.vehicle ALTER COLUMN vehicle_id SET DEFAULT nextval('app.ve
 -- Data for Name: detail_shipping; Type: TABLE DATA; Schema: app; Owner: postgres
 --
 
-COPY app.detail_shipping (detail_shipping_id, shipping_id, vehicle_id, driver_id, operator_id, qty, unit) FROM stdin;
+COPY app.detail_shipping (detail_shipping_id, shipping_id, operator_id, driver_id, vehicle_id, qty, unit) FROM stdin;
 1	1	1	1	1	5	box
-2	2	2	2	1	3	box
+2	2	1	2	2	3	box
 3	3	1	1	1	5	box
-4	4	2	2	1	2	box
+4	4	1	2	2	2	box
 5	5	1	1	1	10	box
-6	6	1	3	2	10	box
-7	7	1	3	2	5	box
-8	8	1	3	2	12	box
-9	9	1	3	2	10	box
-10	10	1	3	2	5	box
-11	11	1	3	2	4	box
-12	12	2	2	1	8	box
-13	13	1	3	2	6	box
+6	6	2	3	1	10	box
+7	7	2	3	1	5	box
+8	8	2	3	1	12	box
+9	9	2	3	1	10	box
+10	10	2	3	1	5	box
+11	11	2	3	1	4	box
+12	12	1	2	2	8	box
+13	13	2	3	1	6	box
+14	14	1	3	1	5	box
 \.
 
 
@@ -533,6 +632,12 @@ COPY app.product (product_id, product_name) FROM stdin;
 59	Entrasol Platinum Vanilla
 60	Entrasol Platinum Chocolate
 61	Hydro Coco Vita-D 1 liter
+62	Milna Biskuit Bayi Coklat
+63	product_name
+66	Biskuit Bayi Baru New K
+67	Biskuit Bayi Baru New
+68	Biskuit Bayi Baru
+69	Biskuit Bayi Baru Coba
 \.
 
 
@@ -540,23 +645,30 @@ COPY app.product (product_id, product_name) FROM stdin;
 -- Data for Name: shipping; Type: TABLE DATA; Schema: app; Owner: postgres
 --
 
-COPY app.shipping (shipping_id, product_id, store_id, sending_time, delivered_time, received_by, kode_shipment) FROM stdin;
-1	1	1	2023-05-01	2023-05-01	Dian Ayu	23083001            
-2	1	2	2023-05-01	2023-05-01	Eriawan	23083002            
-3	5	1	2023-05-01	2023-05-01	Dian Ayu	23083003            
-4	2	2	2023-05-01	2023-05-01	Eriawan	23083004            
-5	11	1	2023-05-01	2023-05-01	Dian Ayu	23083005            
-6	35	3	2023-05-02	2023-05-02	Aji	23083006            
-7	36	3	2023-05-02	2023-05-02	Aji	23083007            
-8	42	3	2023-05-02	2023-05-02	Aji	23083008            
-9	24	3	2023-05-02	2023-05-02	Aji	23083009            
-10	49	4	2023-05-02	2023-05-02	Jamal	23083010            
-11	52	4	2023-05-02	2023-05-02	Jamal	23083011            
-12	52	2	2023-05-01	2023-05-01	Eriawan	23083012            
-13	53	4	2023-05-02	2023-05-02	Jamal	23083013            
-14	1	3	2023-08-30	\N	Eri	23083014            
-15	2	3	2023-08-30	2023-08-30	Irma	23083015            
-16	61	3	2023-08-30	2023-08-30	Irma	23083016            
+COPY app.shipping (shipping_id, product_id, store_id, sending_time, delivered_time, kode_shipment, received_by) FROM stdin;
+1	1	1	2023-05-01	2023-05-01	23090101            	Dian Ayu
+2	1	2	2023-05-01	2023-05-01	23090102            	Eriawan
+3	5	1	2023-05-01	2023-05-01	23090103            	Dian Ayu
+4	2	2	2023-05-01	2023-05-01	23090104            	Eriawan
+5	11	1	2023-05-01	2023-05-01	23090105            	Dian Ayu
+6	35	3	2023-05-02	2023-05-02	23090106            	Aji
+7	36	3	2023-05-02	2023-05-02	23090107            	Aji
+8	42	3	2023-05-02	2023-05-02	23090108            	Aji
+9	24	3	2023-05-02	2023-05-02	23090109            	Aji
+10	49	4	2023-05-02	2023-05-02	23090110            	Jamal
+11	52	4	2023-05-02	2023-05-02	23090111            	Jamal
+12	52	2	2023-05-01	2023-05-01	23090112            	Eriawan
+13	53	4	2023-05-02	2023-05-02	23090113            	Jamal
+14	1	3	2023-09-01	\N	23090114            	Eka
+15	3	2	2023-09-01	2023-09-01	23090115            	Tia
+16	2	3	2023-09-01	\N	23090116            	Eri
+17	1	3	2023-09-02	2023-09-02	23090201            	Eka
+18	62	3	2023-09-02	2023-09-02	23090202            	Nita
+19	66	2	\N	\N	23090301            	Eka
+20	67	2	2023-09-03	2023-09-03	23090302            	Kiki
+21	68	1	2023-09-03	2023-09-03	23090303            	Kiki
+22	2	3	2023-09-03	\N	23090304            	Eri
+23	69	2	2023-09-03	2023-09-03	23090305            	Kiki
 \.
 
 
@@ -650,7 +762,7 @@ COPY pgagent.pga_jobsteplog (jslid, jsljlgid, jsljstid, jslstatus, jslresult, js
 -- Name: detail_shipping_detail_shipping_id_seq; Type: SEQUENCE SET; Schema: app; Owner: postgres
 --
 
-SELECT pg_catalog.setval('app.detail_shipping_detail_shipping_id_seq', 13, true);
+SELECT pg_catalog.setval('app.detail_shipping_detail_shipping_id_seq', 14, true);
 
 
 --
@@ -671,14 +783,14 @@ SELECT pg_catalog.setval('app.operator_operator_id_seq', 2, true);
 -- Name: product_product_id_seq; Type: SEQUENCE SET; Schema: app; Owner: postgres
 --
 
-SELECT pg_catalog.setval('app.product_product_id_seq', 61, true);
+SELECT pg_catalog.setval('app.product_product_id_seq', 69, true);
 
 
 --
 -- Name: shipping_shipping_id_seq; Type: SEQUENCE SET; Schema: app; Owner: postgres
 --
 
-SELECT pg_catalog.setval('app.shipping_shipping_id_seq', 16, true);
+SELECT pg_catalog.setval('app.shipping_shipping_id_seq', 23, true);
 
 
 --
@@ -752,85 +864,93 @@ ALTER TABLE ONLY app.vehicle
 
 
 --
--- Name: fki_fk_driver; Type: INDEX; Schema: app; Owner: postgres
+-- Name: fki_fki_driver; Type: INDEX; Schema: app; Owner: postgres
 --
 
-CREATE INDEX fki_fk_driver ON app.detail_shipping USING btree (driver_id);
-
-
---
--- Name: fki_fk_operator; Type: INDEX; Schema: app; Owner: postgres
---
-
-CREATE INDEX fki_fk_operator ON app.detail_shipping USING btree (operator_id);
+CREATE INDEX fki_fki_driver ON app.detail_shipping USING btree (driver_id);
 
 
 --
--- Name: fki_fk_product; Type: INDEX; Schema: app; Owner: postgres
+-- Name: fki_fki_operator; Type: INDEX; Schema: app; Owner: postgres
 --
 
-CREATE INDEX fki_fk_product ON app.shipping USING btree (product_id);
-
-
---
--- Name: fki_fk_shipping; Type: INDEX; Schema: app; Owner: postgres
---
-
-CREATE INDEX fki_fk_shipping ON app.detail_shipping USING btree (shipping_id);
+CREATE INDEX fki_fki_operator ON app.detail_shipping USING btree (operator_id);
 
 
 --
--- Name: fki_fk_vehicle; Type: INDEX; Schema: app; Owner: postgres
+-- Name: fki_fki_product; Type: INDEX; Schema: app; Owner: postgres
 --
 
-CREATE INDEX fki_fk_vehicle ON app.detail_shipping USING btree (vehicle_id);
-
-
---
--- Name: fki_s; Type: INDEX; Schema: app; Owner: postgres
---
-
-CREATE INDEX fki_s ON app.shipping USING btree (store_id);
+CREATE INDEX fki_fki_product ON app.shipping USING btree (product_id);
 
 
 --
--- Name: detail_shipping fk_driver; Type: FK CONSTRAINT; Schema: app; Owner: postgres
+-- Name: fki_fki_shipping; Type: INDEX; Schema: app; Owner: postgres
 --
 
-ALTER TABLE ONLY app.detail_shipping
-    ADD CONSTRAINT fk_driver FOREIGN KEY (driver_id) REFERENCES app.driver(driver_id);
+CREATE INDEX fki_fki_shipping ON app.detail_shipping USING btree (shipping_id);
 
 
 --
--- Name: detail_shipping fk_operator; Type: FK CONSTRAINT; Schema: app; Owner: postgres
+-- Name: fki_fki_store; Type: INDEX; Schema: app; Owner: postgres
+--
+
+CREATE INDEX fki_fki_store ON app.shipping USING btree (store_id);
+
+
+--
+-- Name: fki_fki_vehicle; Type: INDEX; Schema: app; Owner: postgres
+--
+
+CREATE INDEX fki_fki_vehicle ON app.detail_shipping USING btree (vehicle_id);
+
+
+--
+-- Name: detail_shipping fki_driver; Type: FK CONSTRAINT; Schema: app; Owner: postgres
 --
 
 ALTER TABLE ONLY app.detail_shipping
-    ADD CONSTRAINT fk_operator FOREIGN KEY (operator_id) REFERENCES app.operator(operator_id);
+    ADD CONSTRAINT fki_driver FOREIGN KEY (driver_id) REFERENCES app.driver(driver_id);
 
 
 --
--- Name: shipping fk_product; Type: FK CONSTRAINT; Schema: app; Owner: postgres
+-- Name: detail_shipping fki_operator; Type: FK CONSTRAINT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.detail_shipping
+    ADD CONSTRAINT fki_operator FOREIGN KEY (operator_id) REFERENCES app.operator(operator_id);
+
+
+--
+-- Name: shipping fki_product; Type: FK CONSTRAINT; Schema: app; Owner: postgres
 --
 
 ALTER TABLE ONLY app.shipping
-    ADD CONSTRAINT fk_product FOREIGN KEY (product_id) REFERENCES app.product(product_id);
+    ADD CONSTRAINT fki_product FOREIGN KEY (product_id) REFERENCES app.product(product_id);
 
 
 --
--- Name: shipping fk_store; Type: FK CONSTRAINT; Schema: app; Owner: postgres
---
-
-ALTER TABLE ONLY app.shipping
-    ADD CONSTRAINT fk_store FOREIGN KEY (store_id) REFERENCES app.store(store_id);
-
-
---
--- Name: detail_shipping fk_vehicle; Type: FK CONSTRAINT; Schema: app; Owner: postgres
+-- Name: detail_shipping fki_shipping; Type: FK CONSTRAINT; Schema: app; Owner: postgres
 --
 
 ALTER TABLE ONLY app.detail_shipping
-    ADD CONSTRAINT fk_vehicle FOREIGN KEY (vehicle_id) REFERENCES app.vehicle(vehicle_id);
+    ADD CONSTRAINT fki_shipping FOREIGN KEY (shipping_id) REFERENCES app.shipping(shipping_id);
+
+
+--
+-- Name: shipping fki_store; Type: FK CONSTRAINT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.shipping
+    ADD CONSTRAINT fki_store FOREIGN KEY (store_id) REFERENCES app.store(store_id);
+
+
+--
+-- Name: detail_shipping fki_vehicle; Type: FK CONSTRAINT; Schema: app; Owner: postgres
+--
+
+ALTER TABLE ONLY app.detail_shipping
+    ADD CONSTRAINT fki_vehicle FOREIGN KEY (vehicle_id) REFERENCES app.vehicle(vehicle_id);
 
 
 --
@@ -866,6 +986,13 @@ GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE app.operator TO backend_user;
 --
 
 GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE app.product TO backend_user;
+
+
+--
+-- Name: TABLE shipping; Type: ACL; Schema: app; Owner: postgres
+--
+
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE app.shipping TO backend_user;
 
 
 --
